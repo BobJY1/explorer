@@ -6,30 +6,45 @@ var playerUsername;
 var initialPlacementMade = false;
 var initialPlacementDoneMessage = "Giving out starting resources";
 var placeInitialSettlementSnippet = "placed a";
-var startingResourcesSnippet = "received starting resources:";
-var receivedResourcesSnippet = "got:";
+var startingResourcesSnippet = "received starting resources";
+var receivedResourcesSnippet = "got";
 var builtSnippet = "built a";
 var boughtSnippet = " bought ";
-var tradeBankGaveSnippet = "gave bank:";
+var tradeBankGaveSnippet = "gave bank";
 var tradeBankTookSnippet = "and took";
 var stoleAllOfSnippet = "stole ";
 var discardedSnippet = "discarded";
-var tradedWithSnippet = " with: ";
-var tradedSnippet = " traded: ";
+var tradedWithSnippet = " with ";
+var tradedSnippet = " traded ";
 //var tradeWantsToGiveSnippet = "wants to give:";
-var tradeGiveForSnippet = "for:";
-var stoleFromYouSnippet = "You stole:";
+var tradeGiveForSnippet = "for";
+var stoleFromYouSnippet = "You stole";
 var youStoleSnippet = "from you";
-var stoleFromSnippet = " stole:  from "; // extra space from icon
-var robberSnippet = " moved robber to"
+var stoleFromSnippet = " stole  from "; // extra space from icon
+var robberSnippet = " moved robber to";
 var yearOfPleantlySnippet = "took from bank"
+var comTrack = "upgraded";
+var activateKnight = "activated"
+var upgradeKnight = "upgraded"
+var buildKnight = "placed a"
+var aqueduct = "selected  from"
+
+var smithUsed = false;
+var smithCount;
+var spyUsed = false;
+var deserterUsed = false;
+var weddingUsed = false;
+var comHarb = false;
 
 var wood = "wood";
 var stone = "stone";
 var wheat = "wheat";
 var brick = "brick";
 var sheep = "sheep";
-var resourceTypes = [wood, brick, sheep, wheat, stone];
+var cloth = "cloth";
+var coin = "coin";
+var paper = "paper";
+var resourceTypes = [wood, brick, sheep, wheat, stone, cloth, coin, paper];
 
 // Players
 var players = [];
@@ -41,13 +56,21 @@ var resources = {};
 // Message offset
 var MSG_OFFSET = 0;
 
-const zeros = [0, 0, 0, 0, 0];
+const zeros = [0, 0, 0, 0, 0, 0, 0, 0];
 const zero_deltas = [zeros, zeros, zeros, zeros];
 // Unknow theft potential deltas
 
 function deep_copy_2d_array(array) {
     return array.map(sub_array => Array.from(sub_array));
 }
+// Initialize resources object with default values for all players and resources
+players.forEach(player => {
+    resources[player] = {};
+    resourceTypes.forEach(resource => {
+      resources[player][resource] = 0;
+    });
+  });
+  
 potential_state_deltas = [];
 
 
@@ -123,6 +146,15 @@ function getResourceImg(resourceType) {
         case wood:
             img_name = "card_lumber";
             break;
+        case cloth:
+            img_name = "card_cloth";
+            break;
+        case coin:
+            img_name = "card_coin";
+            break;
+        case paper:
+            img_name = "card_paper";
+            break;
     }
     if (!img_name.length) throw Error("Couldn't find resource image icon");
     return `<img src="https://colonist.io/dist/images/${img_name}.svg" class="explorer-tbl-resource-icon" />`
@@ -131,7 +163,7 @@ function getResourceImg(resourceType) {
 function renderPlayerCell(player) {
     return `
         <div class="explorer-tbl-player-col-cell-color" style="background-color:${player_colors[player]}"></div>
-        <span class="explorer-tbl-player-name" style="color:${player_colors[player]}">${player}</span>
+        <span class="explorer-tbl-player-name" style="color:white">${player}</span>
     `;
 }
 
@@ -155,28 +187,25 @@ function getTotalDeltas() {
 }
 */
 
-/**
-* Renders the table with the counts.
-*/
 function render() {
     if (!shouldRenderTable(resources, potential_state_deltas)) {
-        return;
+      return;
     }
-
+  
     var existingTbl = document.getElementById("explorer-tbl");
     try {
-        if (existingTbl) {
-            existingTbl.remove();
-        }
+      if (existingTbl) {
+        existingTbl.remove();
+      }
     } catch (e) {
-        console.warning("had an issue deleting the table", e);
+      console.warning("had an issue deleting the table", e);
     }
     var body = document.getElementsByTagName("body")[0];
     var tbl = document.createElement("table");
     tbl.setAttribute("cellspacing", 0);
     tbl.setAttribute("cellpadding", 0);
     tbl.id = "explorer-tbl";
-    
+  
     // Header row - one column per resource, plus player column
     var header = tbl.createTHead();
     header.className = "explorer-tbl-header";
@@ -185,10 +214,10 @@ function render() {
     playerHeaderCell.innerHTML = "Name";
     playerHeaderCell.className = "explorer-tbl-player-col-header";
     for (var i = 0; i < resourceTypes.length; i++) {
-        var resourceType = resourceTypes[i];
-        var resourceHeaderCell = headerRow.insertCell(i + 1);
-        resourceHeaderCell.className = "explorer-tbl-cell";
-        resourceHeaderCell.innerHTML = getResourceImg(resourceType);
+      var resourceType = resourceTypes[i];
+      var resourceHeaderCell = headerRow.insertCell(i + 1);
+      resourceHeaderCell.className = "explorer-tbl-cell";
+      resourceHeaderCell.innerHTML = getResourceImg(resourceType);
     }
     var theftsByHeaderCell = headerRow.insertCell(resourceTypes.length + 1);
     theftsByHeaderCell.innerHTML = "+";
@@ -199,57 +228,60 @@ function render() {
     var totalHeaderCell = headerRow.insertCell(resourceTypes.length + 3);
     totalHeaderCell.innerHTML = "Total";
     totalHeaderCell.className = "explorer-tbl-cell";
-    
+  
     var tblBody = tbl.createTBody();
-
+  
     // Row per player
     for (var i = 0; i < players.length; i++) {
-        var player = players[i];
-        var row = tblBody.insertRow(i);
-        row.className = "explorer-tbl-row";
-        var playerRowCell = row.insertCell(0);
-        playerRowCell.className = "explorer-tbl-player-col-cell";
-        playerRowCell.innerHTML = renderPlayerCell(player);
-        for (var j = 0; j < resourceTypes.length; j++) {
-            var cell = row.insertCell(j + 1);
-            cell.className = "explorer-tbl-cell";
-            var resourceType = resourceTypes[j];
-            var cellCount = resources[player][resourceType];
-            var theftSet = calculateTheftForPlayerAndResource(player, resourceType);
-            cell.innerHTML = theftSet.length === 0 
-                ? "" + cellCount
-                : `${cellCount} (${theftSet})`;
-        }
-        var [theftBy, theftFrom]  = calculateTheftForPlayer(player)
-        var theftByCell = row.insertCell(resourceTypes.length + 1);
-        theftByCell.className = "explorer-tbl-cell";
-        theftByCell.innerHTML = theftBy.length === 1
-            ? "" + theftBy
-            : `(${theftBy})`;
-
-        var theftFromCell = row.insertCell(resourceTypes.length + 2);
-        theftFromCell.className = "explorer-tbl-cell";
-        theftFromCell.innerHTML = theftFrom.length === 1
-        ? "" + theftFrom
-        : `(${theftFrom})`;
-
-        var totalCell = row.insertCell(resourceTypes.length + 3);
-        totalCell.className = "explorer-tbl-cell";
-        var totalResources = Object.values(resources[player]).reduce((acc, x) => acc + x, 0);
-        if (theftBy.length !== 0) {
-            totalResources += theftBy[0];
-        }
-        if (theftFrom.length !== 0) {
-            totalResources += theftFrom[0];
-        }
-        totalCell.innerHTML = "" + totalResources;
+      var player = players[i];
+      var row = tblBody.insertRow(i);
+      row.className = "explorer-tbl-row";
+      var playerRowCell = row.insertCell(0);
+      playerRowCell.className = "explorer-tbl-player-col-cell";
+      playerRowCell.innerHTML = renderPlayerCell(player);
+      for (var j = 0; j < resourceTypes.length; j++) {
+        var cell = row.insertCell(j + 1);
+        cell.className = "explorer-tbl-cell";
+        var resourceType = resourceTypes[j];
+        var cellCount = resources[player][resourceType];
+        var theftSet = calculateTheftForPlayerAndResource(player, resourceType);
+        var theftString = theftSet.length === 0 ? "" : `${theftSet}`;
+        cell.innerHTML = Number.isNaN(cellCount) ? "" : `${cellCount} (${theftString})`;
+  
+        cell.innerHTML = theftSet.length === 0 ? "" + cellCount : `${cellCount} (${theftSet})`;
+      }
+      var [theftBy, theftFrom] = calculateTheftForPlayer(player);
+      var theftByCell = row.insertCell(resourceTypes.length + 1);
+      theftByCell.className = "explorer-tbl-cell";
+      theftByCell.innerHTML =
+        theftBy.length === 1 ? "" + theftBy : `(${theftBy})`;
+  
+      var theftFromCell = row.insertCell(resourceTypes.length + 2);
+      theftFromCell.className = "explorer-tbl-cell";
+      theftFromCell.innerHTML =
+        theftFrom.length === 1 ? "" + theftFrom : `(${theftFrom})`;
+  
+      var totalCell = row.insertCell(resourceTypes.length + 3);
+      totalCell.className = "explorer-tbl-cell";
+      var totalResources = Object.values(resources[player]).reduce(
+        (acc, x) => acc + x,
+        0
+      );
+      if (theftBy.length !== 0) {
+        totalResources += theftBy[0];
+      }
+      if (theftFrom.length !== 0) {
+        totalResources += theftFrom[0];
+      }
+      totalCell.innerHTML = "" + totalResources;
     }
-
+  
     // put <table> in the <body>
     body.appendChild(tbl);
-    // tbl border attribute to 
+    // tbl border attribute to
     tbl.setAttribute("border", "2");
-}
+  }
+  
 
 
 /**
@@ -277,13 +309,49 @@ function parseGotMessageHelper(pElement, snippet) {
             resources[player][stone] += 1; 
         } else if (img.src.includes("card_grain")) {
             resources[player][wheat] += 1;
+        } else if (img.src.includes("card_cloth")) {
+            resources[player][cloth] += 1;
+        } else if (img.src.includes("card_coin")) {
+            resources[player][coin] += 1;
+        } else if (img.src.includes("card_paper")) {
+            resources[player][paper] += 1;
         }
     }
 }
 
+/**
+* Process a "selected" message: [user icon] [user] selected: ...[resource images] aqueduct
+*/
+function parseAqueductMessageHelper(pElement, aqueductSnippet) {
+    var textContent = pElement.textContent;
+    if (textContent.includes(aqueductSnippet)) {
+        var player = textContent.split(" ")[0];
+        var resourceMatch = textContent.match(/selected\s+(.*?)\s+from Aqueduct/);
+        if (!resources[player] || !resourceMatch) {
+            LogFailedToParse(player);
+            return;
+        }
+        var resource = resourceMatch[1];
+        var images = collectionToArray(pElement.getElementsByTagName('img'));
+        for (var img of images) {
+            if (img.src.includes("card_wool")) {
+                resources[player][sheep] += 1;
+            } else if (img.src.includes("card_lumber")) {
+                resources[player][wood] += 1;
+            } else if (img.src.includes("card_brick")) {
+                resources[player][brick] += 1;
+            } else if (img.src.includes("card_ore")) {
+                resources[player][stone] += 1; 
+            } else if (img.src.includes("card_grain")) {
+                resources[player][wheat] += 1;
+            }
+        }
+    }
+}
 
 function parseGotMessage(pElement) {
-    parseGotMessageHelper(pElement, receivedResourcesSnippet)
+    parseGotMessageHelper(pElement, receivedResourcesSnippet);
+    parseAqueductMessageHelper(pElement, "selected");
 }
 
 /**
@@ -291,7 +359,128 @@ function parseGotMessage(pElement) {
  */
 function parseBuiltMessage(pElement) {
     var textContent = pElement.textContent;
+
     if (!textContent.includes(builtSnippet)) {
+        return;
+    }
+    var images = collectionToArray(pElement.getElementsByTagName('img'));
+    var player = textContent.split(" ")[0];
+    if (!resources[player]) {
+        console.log("Player resources not found. Skipping..."); // Debugging statement
+        LogFailedToParse(player);
+        return;
+    }
+    for (var img of images) {
+        if (img.src.includes("road")) {
+            resources[player][wood] -= 1;
+            resources[player][brick] -= 1;
+            console.log("Road built by", player); // Debugging statement
+        } else if (img.src.includes("settlement")) {
+            resources[player][wood] -= 1;
+            resources[player][brick] -= 1;
+            resources[player][sheep] -= 1;
+            resources[player][wheat] -= 1;
+            console.log("settle built by", player); // Debugging statement
+        } else if (img.src.includes("city_wall")) {
+            resources[player][brick] -= 2;
+            console.log("citywall built by", player); // Debugging statement
+        } else if (img.src.includes("city")) {
+            resources[player][stone] -= 3;
+            resources[player][wheat] -= 2;
+            console.log("city built by", player); // Debugging statement
+
+        }
+        } 
+    }
+
+/**
+ * Process a knight build
+ */
+function parseKnightbuildMessage(pElement) {
+    var textContent = pElement.textContent;
+    if (!textContent.includes(buildKnight)) {
+        if (textContent.includes("used Deserter")){
+            deserterUsed = true;
+            return;
+        }
+        return;
+    }
+    var images = collectionToArray(pElement.getElementsByTagName('img'));
+    var player = textContent.split(" ")[0];
+    if (!resources[player]) {
+        console.log("Player resources not found. Skipping..."); // Debugging statement
+        LogFailedToParse(player);
+        return;
+    }
+    for (var img of images) {
+        if (img.src.includes("knight")) {
+            if (deserterUsed){
+                deserterUsed = false;
+                return;
+            }
+            console.log("knight built by", player); // Debugging statement
+            resources[player][sheep] -= 1;
+            resources[player][stone] -= 1;
+        }
+    }
+}
+/**
+ * Process a knight upgrade
+ */
+function parseKnightUpgradeMessage(pElement) {
+    var textContent = pElement.textContent;
+    if (textContent.includes("used Smith")) {
+        smithUsed = true;
+        smithCount = 2;
+        console.log("A smith was used:");
+        console.log("smithCount:", smithCount);
+        console.log("smithUsed:", smithUsed);
+    }
+    if (!textContent.includes(upgradeKnight)) {
+        if(smithUsed){
+            if(smithCount < 2) {
+                console.log("resetting smith used")
+                smithUsed = false;
+            }
+        }
+        return;
+    }
+
+    var player = textContent.split(" ")[0];
+    if (!resources[player]) {
+        console.log("Player resources not found. Skipping..."); // Debugging statement
+        LogFailedToParse(player);
+        return;
+    }
+    var images = collectionToArray(pElement.getElementsByTagName('img'));
+    for (var img of images) {
+        if (img.src.includes("knight")) {
+            console.log("Knight upgraded by", player); // Debugging statement
+            if (smithUsed) {
+                if (smithCount > 0) {
+                    console.log("Smith upgrade used ");
+                    smithCount = smithCount - 1;
+                    console.log("Remaining smith upgrades:", smithCount);
+                } else {
+                    console.log("All smith upgrades used.");
+                    smithUsed = false;
+                }
+                return;
+            }
+            resources[player][sheep] -= 1;
+            resources[player][stone] -= 1;
+            return;
+        }
+    }
+}
+
+
+/**
+ * Process a medicine
+ */
+function parseMedicineMessage(pElement) {
+    var textContent = pElement.textContent;
+    if (!textContent.includes("used Medicine")) {
         return;
     }
     var images = collectionToArray(pElement.getElementsByTagName('img'));
@@ -301,27 +490,133 @@ function parseBuiltMessage(pElement) {
         return;
     }
     for (var img of images) {
-        if (img.src.includes("road")) {
-            resources[player][wood] -= 1;
-            resources[player][brick] -= 1;
-        } else if (img.src.includes("settlement")) {
-            resources[player][wood] -= 1;
-            resources[player][brick] -= 1;
-            resources[player][sheep] -= 1;
-            resources[player][wheat] -= 1;
-        } else if (img.src.includes("city")) {
-            resources[player][stone] -= 3;
-            resources[player][wheat] -= 2;
+        if (img.src.includes("medicine")) {
+            resources[player][wheat] += 1;
+            resources[player][stone] += 1;
+            console.log("medicine used by", player); // Debugging statement
         }
     }
 }
+
+/**
+ * Process a engineer
+ */
+function parseEngineerMessage(pElement) {
+    var textContent = pElement.textContent;
+    if (!textContent.includes("used Engineer")) {
+        return;
+    }
+    var images = collectionToArray(pElement.getElementsByTagName('img'));
+    var player = textContent.split(" ")[0];
+    if (!resources[player]) {
+        LogFailedToParse(player);
+        return;
+    }
+    for (var img of images) {
+        if (img.src.includes("engineer")) {
+            resources[player][brick] += 2;
+            console.log("engineer used by", player); // Debugging statement
+        }
+    }
+}
+
+function parseDiploMessage(pElement) {
+    var textContent = pElement.textContent;
+    if (!textContent.includes("is repositioning their road")) {
+
+        return;
+    }
+    var images = collectionToArray(pElement.getElementsByTagName('img'));
+    var player = textContent.split(" ")[0];
+    if (!resources[player]) {
+        LogFailedToParse(player);
+        return;
+    }
+            resources[player][brick] += 1;
+            resources[player][wood] += 1;
+            console.log("diplo used by", player); // Debugging statement
+}
+
+/**
+ * Process a knight activate
+ */
+function parseKnightActivateMessage(pElement) {
+    var textContent = pElement.textContent;
+    if (!textContent.includes(activateKnight)) {
+        return;
+    }
+    var images = collectionToArray(pElement.getElementsByTagName('img'));
+    var player = textContent.split(" ")[0];
+    if (!resources[player]) {
+        LogFailedToParse(player);
+        return;
+    }
+    for (var img of images) {
+        if (img.src.includes("knight")) {
+            resources[player][wheat] -= 1;
+            console.log("knight activated by", player); // Debugging statement
+        }
+    }
+}
+
+// Function to parse commodity upgrade messages
+function parseComUPMessage(pElement) {
+    var textContent = pElement.textContent;
+    if (!textContent.includes(comTrack)) {
+        return;
+    }
+    var images = collectionToArray(pElement.getElementsByTagName('img'));
+    var player = textContent.split(" ")[0];
+    if (!resources[player]) {
+        LogFailedToParse(player);
+        return;
+    }
+    var craneUsed = false; // Flag to track if "used Crane" is found
+    
+    // Check if "used Crane" is present in the previous message
+    var prevMessage = pElement.previousElementSibling;
+    if (prevMessage && prevMessage.textContent.includes("used Crane")) {
+        craneUsed = true;
+    }
+    
+    for (var img of images) {
+        if (img.src.includes("politics")) {
+            var level = extractLevelFromText(textContent);
+            if (level > 0 && level <= 5) {
+                var resourcesToSubtract = craneUsed ? level - 1 : level;
+                resources[player][coin] -= resourcesToSubtract;
+            }
+        } else if (img.src.includes("trade")) {
+            var level = extractLevelFromText(textContent);
+            if (level > 0 && level <= 5) {
+                var resourcesToSubtract = craneUsed ? level - 1 : level;
+                resources[player][cloth] -= resourcesToSubtract;
+            }
+        } else if (img.src.includes("science")) {
+            var level = extractLevelFromText(textContent);
+            if (level > 0 && level <= 5) {
+                var resourcesToSubtract = craneUsed ? level - 1 : level;
+                resources[player][paper] -= resourcesToSubtract;
+            }
+        } 
+    }
+}
+
+function extractLevelFromText(text) {
+    var levelText = text.match(/level\s(\d+)/i);
+    if (levelText && levelText.length > 1) {
+        return parseInt(levelText[1]);
+    }
+    return 0;
+}
+
 
 /**
  * Process a "bought" message: [user icon] [user] built
  */
 function parseBoughtMessage(pElement) {
     var textContent = pElement.textContent;
-    if (!textContent.includes(boughtSnippet)) {
+    if (!textContent.includes(placeInitialSettlementSnippet)) {
         return;
     }
     var images = collectionToArray(pElement.getElementsByTagName('img'));
@@ -366,9 +661,16 @@ function parseBoughtMessage(pElement) {
             resources[player][stone] += 1; 
         } else if (img.src.includes("card_grain")) {
             resources[player][wheat] += 1;
-        }
+        } else if (img.src.includes("card_cloth")) {
+            resources[player][cloth] += 1;
+        } else if (img.src.includes("card_coin")) {
+            resources[player][coin] += 1;
+        } else if (img.src.includes("card_paper")) {
+            resources[player][paper] += 1;
+        } 
     }
  }
+
 
 /**
  * Process a trade with the bank message: [user icon] [user] gave bank: ...[resources] and took ...[resources]
@@ -398,6 +700,12 @@ function parseTradeBankMessage(pElement) {
             resources[player][stone] -= 1; 
         } else if (imgStr.includes("card_grain")) {
             resources[player][wheat] -= 1;
+        } else if (imgStr.includes("card_cloth")) {
+            resources[player][cloth] -= 1;
+        } else if (imgStr.includes("card_coin")) {
+            resources[player][coin] -= 1;
+        } else if (imgStr.includes("card_paper")) {
+            resources[player][paper] -= 1;
         }
     }
     for (var imgStr of andtook) {
@@ -411,19 +719,29 @@ function parseTradeBankMessage(pElement) {
             resources[player][stone] += 1; 
         } else if (imgStr.includes("card_grain")) {
             resources[player][wheat] += 1;
+        } else if (imgStr.includes("card_cloth")) {
+            resources[player][cloth] += 1;
+        } else if (imgStr.includes("card_coin")) {
+            resources[player][coin] += 1;
+        } else if (imgStr.includes("card_paper")) {
+            resources[player][paper] += 1;
         }
     }
 }
 
 function stealAllOfResource(receivingPlayer, resource) {
     for (var plyr of players) {
-        if (plyr !== receivingPlayer) {
-            resources[receivingPlayer][resource] += resources[plyr][resource];
-            resources[plyr][resource] = 0;
+      if (plyr !== receivingPlayer && resources[plyr][resource] > 0) {
+        var amountToSteal = Math.min(resources[plyr][resource], 2);
+        if (resource === cloth || resource === coin || resource === paper) {
+          amountToSteal = Math.min(resources[plyr][resource], 1);
         }
+        resources[receivingPlayer][resource] += amountToSteal;
+        resources[plyr][resource] -= Math.min(amountToSteal, resources[plyr][resource]);
+      }
     }
-}
-
+  }
+  
 /* 
 *  [user] stole [number]: [resource]
 */
@@ -461,6 +779,12 @@ function parseStoleAllOfMessage(pElement) {
             stealAllOfResource(player, stone);
         } else if (img.src.includes("card_grain")) {
             stealAllOfResource(player, wheat);
+        } else if (img.src.includes("card_cloth")) {
+            stealAllOfResource(player, cloth);
+        } else if (img.src.includes("card_coin")) {
+            stealAllOfResource(player, coin);
+        } else if (img.src.includes("card_paper")) {
+            stealAllOfResource(player, paper);
         }
     }
 }
@@ -490,6 +814,12 @@ function parseDiscardedMessage(pElement) {
             resources[player][stone] -= 1; 
         } else if (img.src.includes("card_grain")) {
             resources[player][wheat] -= 1;
+        } else if (img.src.includes("card_cloth")) {
+            resources[player][cloth] -= 1;
+        } else if (img.src.includes("card_coin")) {
+            resources[player][coin] -= 1;
+        } else if (img.src.includes("card_paper")) {
+            resources[player][paper] -= 1;
         }
     }
 }
@@ -497,7 +827,8 @@ function parseDiscardedMessage(pElement) {
 function transferResource(srcPlayer, destPlayer, resource, quantity = 1) {
     resources[srcPlayer][resource] -= quantity;
     resources[destPlayer][resource] += quantity;
-}
+    console.log(srcPlayer, "recieved",resource,"from",destPlayer)
+}  
 
 /**
  * Message T-1: [user1] wants to give: ...[resources] for: ...[resources]
@@ -529,6 +860,12 @@ function parseTradedMessage(pElement, prevElement) {
             transferResource(tradingPlayer, agreeingPlayer, stone);
         } else if (imgStr.includes("card_grain")) {
             transferResource(tradingPlayer, agreeingPlayer, wheat);
+        } else if (imgStr.includes("card_cloth")) {
+            transferResource(tradingPlayer, agreeingPlayer, cloth);
+        } else if (imgStr.includes("card_coin")) {
+            transferResource(tradingPlayer, agreeingPlayer, coin);
+        } else if (imgStr.includes("card_paper")) {
+            transferResource(tradingPlayer, agreeingPlayer, paper);
         }
     }
     for (var imgStr of givefor) {
@@ -542,12 +879,18 @@ function parseTradedMessage(pElement, prevElement) {
             transferResource(agreeingPlayer, tradingPlayer, stone);
         } else if (imgStr.includes("card_grain")) {
             transferResource(agreeingPlayer, tradingPlayer, wheat);
+        } else if (imgStr.includes("card_cloth")) {
+            transferResource(agreeingPlayer, tradingPlayer, cloth);
+        } else if (imgStr.includes("card_coin")) {
+            transferResource(agreeingPlayer, tradingPlayer, coin);
+        } else if (imgStr.includes("card_paper")) {
+            transferResource(agreeingPlayer, tradingPlayer, paper);
         }
     }
 }
 
 function isKnownSteal(textContent) {
-    return textContent.includes(stoleFromYouSnippet) || textContent.includes(youStoleSnippet)
+    return textContent.includes(stoleFromYouSnippet) || textContent.includes(youStoleSnippet) || textContent.includes("used Commercial Harbor")
 }
 
 /**
@@ -586,59 +929,118 @@ function parseStoleFromYouMessage(pElement, prevElement) {
             transferResource(targetPlayer, stealingPlayer, stone);
         } else if (img.src.includes("card_grain")) {
             transferResource(targetPlayer, stealingPlayer, wheat);
+        } else if (img.src.includes("card_cloth")) {
+            transferResource(targetPlayer, stealingPlayer, cloth);
+        } else if (img.src.includes("card_coin")) {
+            transferResource(targetPlayer, stealingPlayer, coin);
+        } else if (img.src.includes("card_paper")) {
+            transferResource(targetPlayer, stealingPlayer, paper);
         }
     }
 }
 
 function add_array_of_arrays(array0, array1) {
-
-    return array0.map((row, outer_index) => 
-        row.map((element, inner_index) => array1[outer_index][inner_index] + element)
-        );
-}
+    // if (array0.length !== array1.length || array0[0].length !== array1[0].length) {
+    //   throw new Error('Input arrays have different dimensions');
+    // }
+  
+    return array0.map((row, outer_index) =>
+      row.map((element, inner_index) => array1[outer_index][inner_index] + element)
+    );
+  }
+  
 
 /**
  * Message T-1: [stealingPlayer] stole [resource] from: [targetPlayer]
  * Message T is NOT: [stealingPlayer] stole: [resource]
  */
+
+
 function parseStoleUnknownMessage(pElement, prevElement) {
     if (!prevElement) {
         return;
     }
+
     var messageT = pElement.textContent;
+
     if (!messageT.includes("stole") || isKnownSteal(messageT) || isMonopoly(messageT)) {
+        if (messageT.includes("used Spy")) {
+            spyUsed = true;
+            console.log("USED SPY");
+        }
+        if (messageT.includes("used Commercial Harbor")) {
+            comHarb = true;
+            console.log("USED COMMERCIAL HARBOR");
+        }
+
+        // if (messageT.includes("used Wedding")) {
+        //     weddingUsed = true;
+        //     console.log("USED WEDDING");
+        // }
+
         return;
     }
+
+    if (spyUsed) {
+        spyUsed = false;
+        return;
+    }
+
+    var stolenResource = 1;
+
+    // if (weddingUsed) {
+    //     weddingUsed = false;
+    //     stolenResource = 2;
+    // }
+
     // figure out the 2 players
     var involvedPlayers = messageT.split(" ");
     var stealingPlayer = involvedPlayers[0];
     var targetPlayer = involvedPlayers.slice(-1)[0];
+
     if (!resources[stealingPlayer] || !resources[targetPlayer]) {
         LogFailedToParse(stealingPlayer, targetPlayer);
         return;
     }
+
     // for the player being stolen from, (-1) on all resources that are non-zero
     // for the player receiving, (+1) for all resources that are non-zero FOR THE OTHER PLAYER
     // record the unknown and wait for it to surface
 
     var stealingPlayerIndex = players.indexOf(stealingPlayer);
     var targetPlayerIndex = players.indexOf(targetPlayer);
-    
+
     var potential_deltas = [];
+
     for (const index of resourceTypes.keys()) {
-        var temp = deep_copy_2d_array(zero_deltas)
-        temp[stealingPlayerIndex][index] = 1;
-        temp[targetPlayerIndex][index] = -1;
-        potential_deltas.push(temp)
+        var temp = deep_copy_2d_array(zero_deltas);
+
+        if (comHarb) {
+            if (index === cloth || index === coin || index === paper) {
+                temp[targetPlayerIndex][index] = 1;
+                temp[stealingPlayerIndex][index] = -1;
+            } else {
+                if (resources[stealingPlayer][index] > 0) {
+                    temp[stealingPlayerIndex][index] = -1;
+                    temp[targetPlayerIndex][index] = 1;
+                }
+            }
+        } else {
+            temp[stealingPlayerIndex][index] = stolenResource;
+            temp[targetPlayerIndex][index] = -stolenResource;
+        }
+
+        potential_deltas.push(temp);
     }
-    
+
     potential_state_deltas = (potential_state_deltas.length === 0
         ? [deep_copy_2d_array(zero_deltas)]
         : potential_state_deltas
-        ).flatMap(potential_accumulated_delta => 
+    ).flatMap(potential_accumulated_delta =>
         potential_deltas.map(potential_delta =>
             add_array_of_arrays(potential_delta, potential_accumulated_delta)));
 }
+
 function getIndices(predicate, delta) {
     for (var [outer_index, player_delta] of delta.entries()) {
         var inner_index = player_delta.findIndex(predicate);
@@ -704,6 +1106,7 @@ function resourcesToArray(resourcesDict) {
     for (const player of players) {
         result.push(playerResourcesToArray(resourcesDict[player]));
     }
+    console.log("resoure to array result:", result)
     return result;
 }
 /**
@@ -716,34 +1119,47 @@ function resourcesToArray(resourcesDict) {
  */
 function reviewThefts() {
     const resourcesArray = resourcesToArray(resources);
+
     const before_len = potential_state_deltas.length;
+
     potential_state_deltas_temp = potential_state_deltas.filter(delta =>
         shouldKeep(add_array_of_arrays(resourcesArray, delta), delta)
-        );
-    
+    );
+ 
     if (potential_state_deltas_temp.length === 0) {
         if (areAnyNegative(resourcesArray)) {
             getAllMessages().map(x => x.textContent).slice(-100);
-            console.error("Couldn't resolve thefts correctly. There almost certianly is a bug parsing messages");
+            console.error("Couldn't resolve thefts correctly. There almost certainly is a bug parsing messages");
         }
     }
-    potential_state_deltas = potential_state_deltas_temp
+    potential_state_deltas = potential_state_deltas_temp;
 
     if (potential_state_deltas.length === 1) {
         const actual_resources_delta = potential_state_deltas[0];
-        const actual_resources = add_array_of_arrays(actual_resources_delta, resourcesArray)
+        const actual_resources = add_array_of_arrays(actual_resources_delta, resourcesArray);
+
         if (areAnyNegative(actual_resources)) {
             throw Error("Couldn't resolve thefts correctly");
         }
+
         resources_temp = resourcesToDict(actual_resources);
         resources = resources_temp;
         potential_state_deltas = [];
     }
 }
 
+
+
 var ALL_PARSERS = [
     parseGotMessage,
     parseBuiltMessage,
+    parseKnightActivateMessage,
+    parseKnightbuildMessage,
+    parseKnightUpgradeMessage,
+    parseMedicineMessage,
+    parseEngineerMessage,
+    parseDiploMessage,
+    parseComUPMessage,
     parseBoughtMessage,
     parseTradeBankMessage,
     parseYearOfPleantyMessage,
@@ -826,6 +1242,9 @@ function recognizeUsers() {
                 [wheat]: 0,
                 [brick]: 0,
                 [sheep]: 0,
+                [cloth]: 0,
+                [coin]: 0,
+                [paper]: 0,
             };
         }
     }
