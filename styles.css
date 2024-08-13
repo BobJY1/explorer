@@ -8,7 +8,7 @@
 #explorer-tbl {
     position: absolute;
     background-color: #1d1d1d;
-    z-index: 9999;
+    z-index: 100;
     top: 10px;
     left: 10px;
     padding: 3px;
@@ -69,4 +69,63 @@
 .explorer-tbl-resource-icon {
     width: 24px;
     height: 36px;
+}
+
+.toggle-button {
+    position: fixed;
+    top: 10px;
+    left: 520px;
+    z-index: 9999;
+    background-color: #1d1d1d; /* Match table background color */
+    color: #fff; /* Match table font color */
+    border: none; /* Match table border */
+    padding: 4px 7px; /* Match table cell padding */
+    font-family: 'Roboto', sans-serif; /* Match table font family */
+    font-size: 85%; /* Match table font size */
+    display: flex; /* Use flexbox for proper alignment */
+    align-items: center; /* Vertically center the image */
+    justify-content: center; /* Center the content */
+}
+
+.toggle-button img {
+    width: 32px; /* Adjust the size as needed */
+    height: 32px; /* Adjust the size as needed */
+}
+
+.submit-button {
+    position: fixed;
+    top: 10px;
+    left: 10px;
+    z-index: 9999;
+    background-color: #1e778d; /* Match table background color */
+    color: #fff; /* Match table font color */
+    border: none; /* Match table border */
+    padding: 4px 7px; /* Match table cell padding */
+    font-family: 'Roboto', sans-serif; /* Match table font family */
+    font-size: 85%; /* Match table font size */
+    width: 200px; /* Adjust width to change button width */
+    height: 50px; /* Adjust height to change button height */
+}
+
+.inputbox1-box {
+    position: fixed;
+    top: 10px;
+    left: 220px;
+    z-index: 9999;
+    background-color: #1e778d; /* Match table background color */
+    color: #fff; /* Match table font color */
+    border: none; /* Match table border */
+    padding: 4px 7px; /* Match table cell padding */
+    font-family: 'Roboto', sans-serif; /* Match table font family */
+    font-size: 85%; /* Match table font size */
+}
+@keyframes flash-red {
+    0% { border-color: transparent; }
+    50% { border-color: red; }
+    100% { border-color: transparent; }
+}
+
+.flash-red {
+    border: 2px solid transparent; /* Add a border to the input box */
+    animation: flash-red 2s infinite;
 }
